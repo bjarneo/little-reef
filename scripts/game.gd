@@ -861,7 +861,9 @@ func _emit() -> void:
 # smiles now and then, and sinks back down.
 
 func face_scale() -> int:
-	return maxi(1, roundi((SAND - TOP) * 0.8 / Sprites.FACE_H))
+	var by_height := roundi((SAND - TOP) * 0.8 / Sprites.FACE_H)
+	var by_width := floori(view_size.x / fit_scale * 0.62 / Sprites.FACE_W)
+	return maxi(1, mini(by_height, by_width))
 
 
 func _keeper_update(dt: float) -> void:

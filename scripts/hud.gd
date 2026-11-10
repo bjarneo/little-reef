@@ -45,6 +45,28 @@ var _refs := {}
 var _anim := {"drawer": 1.0, "card": 1.0, "decor": 1.0}
 
 var bottom_bar: HFlowContainer
+var _compact := false
+var _reflow := false
+var _two_row := false
+var _margin: MarginContainer
+var _top_flow: HFlowContainer
+var _compact_top: VBoxContainer
+var _row1: HFlowContainer
+var _row2: HBoxContainer
+var _row3: HFlowContainer
+var _row3_btns: HBoxContainer
+var _lg: HBoxContainer
+var _logo: Label
+var _coin: HBoxContainer
+var _fish_g: HBoxContainer
+var _fish_title: Label
+var _rg: HBoxContainer
+var _stat_items: Array = []
+var _stat_labels: Array = []
+var _stat_heads: Array = []
+var _tools_panel: PanelContainer
+var _panels_panel: PanelContainer
+var _zoom_btns: Array = []
 var tool_btns := {}
 var panel_btns := {}
 var hint_box: PanelContainer
@@ -68,6 +90,7 @@ func build(game: Game) -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	theme = UI.make_theme()
 	var margin := MarginContainer.new()
+	_margin = margin
 	margin.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	margin.mouse_filter = MOUSE_FILTER_IGNORE
 	for side in ["left", "top", "right", "bottom"]:
@@ -100,13 +123,16 @@ func _build_top(col: VBoxContainer) -> void:
 	top_bar = UI.px_panel(BAR_BG, UI.BORDER, 3, Vector4(12, 8, 12, 8))
 	col.add_child(top_bar)
 	var flow := HFlowContainer.new()
+	_top_flow = flow
 	flow.add_theme_constant_override("h_separation", 18)
 	flow.add_theme_constant_override("v_separation", 10)
 	flow.mouse_filter = MOUSE_FILTER_IGNORE
 	top_bar.add_child(flow)
 	var lg := UI.hbox(12)
+	_lg = lg
 	lg.size_flags_vertical = SIZE_SHRINK_CENTER
 	var logo := UI.label("LITTLE REEF", UI.silk, 16, UI.LOGO)
+	_logo = logo
 	logo.mouse_filter = MOUSE_FILTER_STOP
 	logo.gui_input.connect(_on_logo_input)
 	lg.add_child(logo)
@@ -136,7 +162,11 @@ func _build_top(col: VBoxContainer) -> void:
 		item.mouse_filter = MOUSE_FILTER_PASS
 		item.tooltip_text = tips[i]
 		var head := UI.hbox(6)
-		head.add_child(UI.label(["WATER", "ALGAE", "FED", "HEALTH", "MOOD"][i], UI.silk, 10, UI.MUTED))
+		var name_l := UI.label(["WATER", "ALGAE", "FED", "HEALTH", "MOOD"][i], UI.silk, 10, UI.MUTED)
+		head.add_child(name_l)
+		_stat_labels.append(name_l)
+		_stat_heads.append(head)
+		_stat_items.append(item)
 		head.add_child(UI.spacer())
 		var val := UI.label("0", UI.silk, 10)
 		head.add_child(val)
@@ -146,17 +176,21 @@ func _build_top(col: VBoxContainer) -> void:
 		stats_flow.add_child(item)
 		stat_rows.append({"val": val, "bar": bar})
 	var fg := UI.hbox(10)
+	_fish_g = fg
 	fg.size_flags_vertical = SIZE_SHRINK_CENTER
-	fg.add_child(UI.label("FISH", UI.silk, 11, UI.MUTED))
+	_fish_title = UI.label("FISH", UI.silk, 11, UI.MUTED)
+	fg.add_child(_fish_title)
 	fish_l = UI.label("0/6", UI.silk, 11)
 	fg.add_child(fish_l)
 	alerts_box = UI.hbox(10)
 	fg.add_child(alerts_box)
 	stats_flow.add_child(fg)
 	var rg := UI.hbox(10)
+	_rg = rg
 	rg.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
 	rg.size_flags_vertical = SIZE_SHRINK_CENTER
 	var coin := UI.hbox(8)
+	_coin = coin
 	coin.size_flags_vertical = SIZE_SHRINK_CENTER
 	coin.add_child(UI.CoinIcon.new())
 	coins_l = UI.label("0", UI.silk, 16, UI.GOLD_TEXT)
@@ -173,6 +207,23 @@ func _build_top(col: VBoxContainer) -> void:
 	sound_btn.pressed.connect(func(): g.set_sound(not g.synth.on))
 	rg.add_child(sound_btn)
 	flow.add_child(rg)
+	# The compact layout for phones. _apply_mode() moves the widgets above into these rows.
+	_compact_top = UI.vbox(7)
+	_compact_top.visible = false
+	top_bar.add_child(_compact_top)
+	_row1 = HFlowContainer.new()
+	_row3 = HFlowContainer.new()
+	for r in [_row1, _row3]:
+		r.add_theme_constant_override("h_separation", 10)
+		r.add_theme_constant_override("v_separation", 6)
+		r.mouse_filter = MOUSE_FILTER_IGNORE
+	_row2 = UI.hbox(6)
+	_row3_btns = UI.hbox(8)
+	_row3_btns.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
+	_compact_top.add_child(_row1)
+	_compact_top.add_child(_row2)
+	_compact_top.add_child(_row3)
+	_row3.add_child(_row3_btns)
 
 
 func _build_middle() -> void:
@@ -311,6 +362,7 @@ func _build_middle() -> void:
 	zout.pressed.connect(func(): g.zoom_step(-1))
 	zoom_box.add_child(zin)
 	zoom_box.add_child(zout)
+	_zoom_btns = [zin, zout]
 	middle.add_child(zoom_box)
 
 	toast_box = UI.vbox(8)
@@ -327,6 +379,7 @@ func _build_bottom(col: VBoxContainer) -> void:
 	bottom_bar.mouse_filter = MOUSE_FILTER_IGNORE
 	col.add_child(bottom_bar)
 	var tp := UI.px_panel(BAR_BG, UI.BORDER, 3, Vector4(6, 6, 6, 6))
+	_tools_panel = tp
 	var th := UI.hbox(6)
 	tp.add_child(th)
 	for t in TOOLS:
@@ -348,6 +401,7 @@ func _build_bottom(col: VBoxContainer) -> void:
 		tool_btns[key] = {"btn": b, "label": l, "num": n}
 	bottom_bar.add_child(tp)
 	var pp := UI.px_panel(BAR_BG, UI.BORDER, 3, Vector4(6, 6, 6, 6))
+	_panels_panel = pp
 	var ph := UI.hbox(6)
 	pp.add_child(ph)
 	for p in PANELS:
@@ -473,11 +527,12 @@ func _on_toast(text: String, kind: String) -> void:
 		t.mouse_filter = MOUSE_FILTER_IGNORE
 		h.add_child(t)
 		face_w = 34.0
-	var l := UI.wrap_label(text, UI.pix, 15)
+	var fs := 14 if _compact else 15
+	var l := UI.wrap_label(text, UI.pix, fs)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.size_flags_vertical = SIZE_SHRINK_CENTER
-	var tw := UI.pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 2.0
+	var tw := UI.pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 2.0
 	l.custom_minimum_size.x = minf(tw, minf(520.0 - 32.0 - face_w, maxf(120.0, middle.size.x - 16.0 - 32.0 - face_w)))
 	h.add_child(l)
 	toast_box.add_child(box)
@@ -987,6 +1042,83 @@ func _on_reset() -> void:
 
 # ---------- layout ----------
 
+## Switches layouts. reflow moves the top bar into three phone rows. small uses tighter sizes.
+func _apply_mode(reflow: bool, small: bool, two_row: bool) -> void:
+	_compact = small
+	_reflow = reflow
+	_two_row = two_row
+	var c := small
+	if reflow:
+		_lg.reparent(_row1, false)
+		_row1.move_child(_lg, 0)
+		_coin.reparent(_row1, false)
+		_coin.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
+		for it in _stat_items:
+			it.reparent(_row2, false)
+		if two_row:
+			# Short landscape screens: buttons beside the coins, fish count after the stats.
+			_row3_btns.reparent(_row1, false)
+			_row3_btns.size_flags_horizontal = SIZE_SHRINK_END
+			_fish_g.reparent(_row2, false)
+		else:
+			_row3_btns.reparent(_row3, false)
+			_row3_btns.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
+			_fish_g.reparent(_row3, false)
+			_row3.move_child(_fish_g, 0)
+		_row3.visible = not two_row
+		water_btn.reparent(_row3_btns, false)
+		sound_btn.reparent(_row3_btns, false)
+	else:
+		_lg.reparent(_top_flow, false)
+		_top_flow.move_child(_lg, 0)
+		for it in _stat_items:
+			it.reparent(stats_flow, false)
+		_fish_g.reparent(stats_flow, false)
+		_coin.reparent(_rg, false)
+		_rg.move_child(_coin, 0)
+		_coin.size_flags_horizontal = SIZE_FILL
+		water_btn.reparent(_rg, false)
+		sound_btn.reparent(_rg, false)
+	_top_flow.visible = not reflow
+	_compact_top.visible = reflow
+	var pad := Vector4(10, 7, 10, 7) if c else Vector4(12, 8, 12, 8)
+	top_bar.add_theme_stylebox_override("panel", UI.px_box(BAR_BG, UI.BORDER, 3, pad))
+	_logo.add_theme_font_size_override("font_size", 11 if c else 16)
+	for l in [day_l, clock_l, phase_l]:
+		l.add_theme_font_size_override("font_size", 10 if c else 12)
+	coins_l.add_theme_font_size_override("font_size", 14 if c else 16)
+	income_l.add_theme_font_size_override("font_size", 9 if c else 10)
+	_fish_title.add_theme_font_size_override("font_size", 10 if c else 11)
+	fish_l.add_theme_font_size_override("font_size", 10 if c else 11)
+	for i in _stat_items.size():
+		_stat_items[i].custom_minimum_size.x = 0.0 if reflow else 64.0
+		_stat_labels[i].add_theme_font_size_override("font_size", 9 if c else 10)
+		_stat_labels[i].clip_text = reflow
+		_stat_labels[i].size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+		_stat_heads[i].get_child(1).visible = not reflow
+		_stat_heads[i].add_theme_constant_override("separation", 3 if reflow else 6)
+		stat_rows[i].val.add_theme_font_size_override("font_size", 9 if c else 10)
+	for b in [water_btn, sound_btn]:
+		b.label.add_theme_font_size_override("font_size", 10 if c else 11)
+		b.custom_minimum_size.y = 30 if c else 34
+	for side in ["left", "top", "right", "bottom"]:
+		_margin.add_theme_constant_override("margin_" + side, 8 if c else 15)
+	bottom_bar.add_theme_constant_override("v_separation", 10 if c else 16)
+	for p in [_tools_panel, _panels_panel]:
+		p.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+	var touch := DisplayServer.is_touchscreen_available()
+	for k in tool_btns:
+		tool_btns[k].num.visible = not (c or touch)
+		tool_btns[k].btn.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+		tool_btns[k].btn.custom_minimum_size.x = 0.0 if reflow else 64.0
+	for k in panel_btns:
+		panel_btns[k].size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+		panel_btns[k].custom_minimum_size.x = 0.0 if reflow else 58.0
+	for b in _zoom_btns:
+		b.custom_minimum_size = Vector2(36, 36) if c else Vector2(40, 40)
+	_refresh()
+
+
 func _process(dt: float) -> void:
 	_clock += dt
 	if reset_arm and _clock > _reset_t:
@@ -996,7 +1128,12 @@ func _process(dt: float) -> void:
 	narrow = size.x < 760.0
 	if was != narrow:
 		_refresh()
-	stats_flow.custom_minimum_size.x = minf(320.0, maxf(0.0, top_bar.size.x - 24.0))
+	var reflow := narrow or (size.y > 0.0 and size.y < 520.0)
+	var two_row := reflow and size.x >= 600.0
+	if size.x > 0.0 and (reflow != _reflow or reflow != _compact or two_row != _two_row):
+		_apply_mode(reflow, reflow, two_row)
+	if not _compact:
+		stats_flow.custom_minimum_size.x = minf(320.0, maxf(0.0, top_bar.size.x - 24.0))
 	var top_inset := top_bar.global_position.y + top_bar.size.y + 3.0
 	var bottom_inset := size.y - bottom_bar.global_position.y + 3.0
 	g.set_view(size, top_inset, bottom_inset)

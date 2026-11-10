@@ -37,10 +37,10 @@ godot --path .
 The web build is single-threaded. It runs on any static host and does not need cross-origin isolation headers. It also runs in mobile browsers.
 
 1. Install the Godot 4.7.2 web export templates. The export needs `web_nothreads_release.zip` and `web_nothreads_debug.zip` in `~/.local/share/godot/export_templates/4.7.2.stable/`.
-2. Export the build:
+2. Export the build. The script also copies the web app manifest and icons from `web_extra/`:
 
    ```sh
-   godot --headless --path . --export-release "Web" build/web/index.html
+   ./tools/export_web.sh
    ```
 
 3. Test the build on your computer:
@@ -54,6 +54,10 @@ The web build is single-threaded. It runs on any static host and does not need c
 4. Upload the contents of `build/web/` to a static host, for example GitHub Pages, Netlify, Cloudflare Pages or itch.io. For itch.io, zip the folder and upload it as an HTML game.
 
 The host must serve `.wasm` files as `application/wasm`. Most static hosts do this by default.
+
+## Play on a phone
+
+Open the game link in the phone browser. To play fullscreen like an app, use "Add to Home Screen" in the browser menu. The layout adapts to portrait and landscape: the bars get compact, and the tool buttons fill the width.
 
 ## Save data
 

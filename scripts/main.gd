@@ -107,6 +107,8 @@ func _setup_window() -> void:
 ## Keeps one UI pixel equal to one CSS pixel on high-density screens such as phones.
 func _fit_scale() -> void:
 	var win := get_window()
+	# The density changes with browser zoom and when the window moves to another screen.
+	_dpr = clampf(DisplayServer.screen_get_scale(), 1.0, 4.0)
 	var base := Vector2i((Vector2(win.size) / _dpr).round()).max(Vector2i(1, 1))
 	if win.content_scale_size != base:
 		win.content_scale_size = base
