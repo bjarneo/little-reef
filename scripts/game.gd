@@ -60,12 +60,12 @@ var _last_wall := 0.0
 
 const FACE_RISE := 1.8
 ## Clean tool reach in tank pixels: waste and rotten food, and algae on the glass.
-const CLEAN_R := 28.0
-const SCRUB_R := 34.0
+const CLEAN_R := 112.0
+const SCRUB_R := 136.0
 ## Upkeep pace. Lower values mean less cleaning.
-const ALGAE_GROWTH := 0.0005
-const POOP_EVERY := 100.0
-const WASTE_FOUL := 0.005
+const ALGAE_GROWTH := 0.0002
+const POOP_EVERY := 200.0
+const WASTE_FOUL := 0.003
 const KEEPER_LINES := ["Looking good.", "Nice tank.", "Hmm. Not bad.", "Don't tap the glass.", "I like that one.", "Carry on.", "Good water today."]
 
 

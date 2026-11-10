@@ -73,8 +73,9 @@ func _draw() -> void:
 			draw_rect(Rect2(x - 1, 5, 1, y - 5), Color(1, 1, 1, 0.35))
 			draw_rect(Rect2(x - 2, y - 1, 5, 3), Color(160 / 255.0, 200 / 255.0, 214 / 255.0, 0.8))
 		var ring := Color(1, 1, 1, 0.55)
-		for i in 56:
-			var an := i / 56.0 * TAU + T
+		var dots := int(Game.CLEAN_R * 1.5)
+		for i in dots:
+			var an := float(i) / dots * TAU + T * 0.25
 			draw_rect(Rect2(D.jr(x + cos(an) * Game.CLEAN_R), D.jr(y + sin(an) * Game.CLEAN_R), 1, 1), ring)
 	if g.tool == "feed" and g.ptr.over and g.ptr.y < SAND:
 		var x := D.jr(g.ptr.x)

@@ -27,8 +27,8 @@ godot --path .
 - Five new fish. Goby, Angel, Tang and Betta are in the shop. Lantern comes only from breeding, and its lure glows at night.
 - The keeper. A large pixel-art portrait of the keeper rises from behind the tank every one to three minutes. It looks in through the back glass, blinks and smiles now and then. Tap the face with Look for a tip and 5 coins.
 - Seven new decorations: starfish, moss ball, driftwood, amphora, anemone, diver and castle. The moss ball is a plant and cleans the water. The diver sends up bubbles. Each "Bigger tank" level holds more decorations, up to 30.
-- Less upkeep. Algae grows at less than half the original rate, and fish leave waste half as often.
-- A larger Clean tool. It siphons waste within 28 tank pixels and scrubs algae within 34 tank pixels.
+- Less upkeep. Algae grows at about a fifth of the original rate, and fish leave waste a quarter as often.
+- A large Clean tool. It siphons waste within 112 tank pixels and scrubs algae within 136 tank pixels, so one sweep cleans most of the tank.
 - A bigger tank. Each "Bigger tank" upgrade makes the tank wider and taller, and the camera zooms out to show it. Zoom in to see the fish up close.
 - Three new achievements: Say Hello, Mixed Shoal and Glow Up. A fourth achievement, Curator, fills 40 book entries.
 
