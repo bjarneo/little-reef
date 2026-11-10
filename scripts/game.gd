@@ -60,8 +60,12 @@ var _last_wall := 0.0
 
 const FACE_RISE := 1.8
 ## Clean tool reach in tank pixels: waste and rotten food, and algae on the glass.
-const CLEAN_R := 14.0
-const SCRUB_R := 17.0
+const CLEAN_R := 28.0
+const SCRUB_R := 34.0
+## Upkeep pace. Lower values mean less cleaning.
+const ALGAE_GROWTH := 0.0005
+const POOP_EVERY := 100.0
+const WASTE_FOUL := 0.005
 const KEEPER_LINES := ["Looking good.", "Nice tank.", "Hmm. Not bad.", "Don't tap the glass.", "I like that one.", "Carry on.", "Good water today."]
 
 
@@ -524,10 +528,10 @@ func _step(dt: float, off: bool) -> void:
 		if w.rest:
 			rest += 1
 	var dead: int = S.fish.size() - alive.size()
-	var decay: float = (0.012 * bio + 0.008 * rest + 0.03 * rot + 0.25 * dead + 0.02 * crowd_n) * D.FILTER[S.up.filter]
+	var decay: float = (0.012 * bio + WASTE_FOUL * rest + 0.03 * rot + 0.25 * dead + 0.02 * crowd_n) * D.FILTER[S.up.filter]
 	var regen := plants * 0.006 + (0.004 if S.up.pump > 0 else 0.0)
 	S.water = clampf(S.water + (regen - decay) * dt, 0.0, 100.0)
-	_alg_pending += 0.0011 * sky.light * (2.2 if S.water < 60.0 else 1.0) * dt
+	_alg_pending += ALGAE_GROWTH * sky.light * (2.2 if S.water < 60.0 else 1.0) * dt
 	_alg_t += dt
 	if _alg_t >= (30.0 if off else 0.25):
 		_apply_algae()
@@ -651,7 +655,7 @@ func _update_fish(f: Dictionary, dt: float, env: Dictionary) -> void:
 			f.coinAcc -= n
 			_earn(n, f.x, f.y - 8.0, env.off)
 	f.poopAcc += dt * sz * (f.hunger / 100.0)
-	if f.poopAcc > 50.0:
+	if f.poopAcc > POOP_EVERY:
 		f.poopAcc = 0.0
 		S.waste.append({"x": clampf(f.x - f.face * 4, 2, W - 2), "y": f.y + 1.0, "rest": false})
 	if env.off:
