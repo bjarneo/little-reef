@@ -56,7 +56,8 @@ func _draw() -> void:
 		if f != null:
 			var b := g.fish_box(f)
 			_bracket(b.position.x - 2, b.position.y - 2, b.end.x + 2, b.end.y + 2, Color.WHITE if blink else Color("#7fe6f2"))
-	if g.tool == "arrange":
+	# The selection marker hides while a decoration is dragged, so nothing covers it.
+	if g.tool == "arrange" and g.drag.is_empty():
 		var hd = g.decor_by_id(g.sel_decor) if g.sel_decor >= 0 else (g.hit_decor(Vector2(g.ptr.x, g.ptr.y)) if g.ptr.over else null)
 		if hd != null:
 			var b := g.decor_box(hd)

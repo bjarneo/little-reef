@@ -44,6 +44,13 @@ func set_colors(bg: Color, fg: Color) -> void:
 		label.add_theme_color_override("font_color", fg)
 
 
+func set_pad(x: float, y: float) -> void:
+	_sb.content_margin_left = x
+	_sb.content_margin_right = x
+	_sb.content_margin_top = y
+	_sb.content_margin_bottom = y
+
+
 func set_dim(v: float) -> void:
 	if dim != v:
 		dim = v
@@ -64,7 +71,8 @@ func _apply() -> void:
 
 func _draw() -> void:
 	if dot_visible:
-		draw_rect(Rect2(size.x - 11, 5, 6, 6), dot_color)
+		# Small buttons, like the drawer tabs on phones, get a smaller dot in the corner.
+		draw_rect(Rect2(size.x - 7, 3, 4, 4) if size.y < 36.0 else Rect2(size.x - 11, 5, 6, 6), dot_color)
 
 
 func _gui_input(e: InputEvent) -> void:

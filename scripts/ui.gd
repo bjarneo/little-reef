@@ -237,6 +237,37 @@ class CoinIcon:
 		draw_rect(Rect2(0, 0, 8, 2), Color("#ffedb9"))
 
 
+## A pixel speaker for the sound button. It shows sound waves when on and a cross when off.
+class Speaker:
+	extends Control
+	var on := true
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(18, 14)
+		size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func set_on(v: bool) -> void:
+		if v != on:
+			on = v
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := TEXT if on else MUTED
+		draw_rect(Rect2(0, 4, 4, 6), c)
+		draw_rect(Rect2(4, 2, 2, 10), c)
+		draw_rect(Rect2(6, 0, 2, 14), c)
+		if on:
+			draw_rect(Rect2(10, 4, 2, 6), c)
+			draw_rect(Rect2(13, 1, 2, 2), c)
+			draw_rect(Rect2(15, 3, 2, 8), c)
+			draw_rect(Rect2(13, 11, 2, 2), c)
+		else:
+			for p in [Vector2(10, 3), Vector2(12, 5), Vector2(14, 7), Vector2(16, 9), Vector2(16, 3), Vector2(14, 5), Vector2(12, 7), Vector2(10, 9)]:
+				draw_rect(Rect2(p, Vector2(2, 2)), BAD)
+
+
 ## The achievement checkbox: a filled square with a 2 px ring.
 class AchBox:
 	extends Control

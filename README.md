@@ -18,9 +18,10 @@ godot --path .
 | --- | --- | --- |
 | Pick a tool | Keys `1` to `4`, or the tool bar | The tool bar |
 | Inspect a fish | Click it with Look | Tap it with Look |
-| Zoom | Mouse wheel, `+` and `-`, or the zoom buttons | Pinch, or the zoom buttons |
+| Zoom | Mouse wheel, `+` and `-`, or the zoom buttons | Pinch |
 | Pan a large tank | Drag with Look, right-drag, or the arrow keys | Drag with Look, or drag with two fingers |
-| Close a panel | `Esc` | The CLOSE button |
+| Open a panel | The panel buttons | MENU, then a tab |
+| Close a panel | `Esc` | The X button |
 
 ## What is new compared to the design
 
@@ -57,7 +58,13 @@ The host must serve `.wasm` files as `application/wasm`. Most static hosts do th
 
 ## Play on a phone
 
-Open the game link in the phone browser. To play fullscreen like an app, use "Add to Home Screen" in the browser menu. The layout adapts to portrait and landscape: the bars get compact, and the tool buttons fill the width.
+Open the game link in the phone browser. To play fullscreen like an app, use "Add to Home Screen" in the browser menu. The phone layout keeps the screen clear:
+
+- The top bar shows the clock, the coins, the water change button, the sound button and the five stat bars.
+- The bottom bar shows the four tools and a MENU button. MENU opens the Fish, Shop, Breed, Book and Awards tabs.
+- The shop stays open after a purchase, so you can buy more.
+- The decoration controls show at the top of the tank and hide while you drag a decoration.
+- Hints are short and show at the top of the tank.
 
 ## Save data
 

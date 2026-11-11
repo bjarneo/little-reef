@@ -49,12 +49,21 @@ var _compact := false
 var _reflow := false
 var _two_row := false
 var _margin: MarginContainer
+var _col: VBoxContainer
 var _top_flow: HFlowContainer
 var _compact_top: VBoxContainer
-var _row1: HFlowContainer
+var _row1: HBoxContainer
 var _row2: HBoxContainer
-var _row3: HFlowContainer
-var _row3_btns: HBoxContainer
+var _speaker: UI.Speaker
+var _tabs: HBoxContainer
+var _panels_row: HBoxContainer
+var _dclose: PxButton
+var _dspacers: Array = []
+var menu_btn: PxButton
+var _last_panel := "shop"
+var _buying := false
+var _touch := false
+var _was_dragging := false
 var _lg: HBoxContainer
 var _logo: Label
 var _coin: HBoxContainer
@@ -80,6 +89,13 @@ const HINTS := {
 	"clean": "Drag over the gravel to siphon waste, or over the glass to scrub algae.",
 	"arrange": "Tap a decoration, then drag it. Buy more in the shop.",
 }
+## Shorter hints for phones. They show at the top of the tank, away from the gravel.
+const HINTS_SHORT := {
+	"look": "Tap a fish to check on it",
+	"feed": "Tap the water to drop food",
+	"clean": "Drag over the gravel or the glass",
+	"arrange": "Tap a decoration, then drag it",
+}
 const PANEL_BG := Color(14 / 255.0, 21 / 255.0, 38 / 255.0, 0.94)
 const BAR_BG := Color(11 / 255.0, 17 / 255.0, 32 / 255.0, 0.86)
 
@@ -97,6 +113,7 @@ func build(game: Game) -> void:
 		margin.add_theme_constant_override("margin_" + side, 15)
 	add_child(margin)
 	var col := UI.vbox(18)
+	_col = col
 	margin.add_child(col)
 	_build_top(col)
 	middle = Control.new()
@@ -140,6 +157,9 @@ func _build_top(col: VBoxContainer) -> void:
 	day_l = UI.label("DAY 1", UI.silk, 12)
 	clock_l = UI.label("06:00", UI.silk, 12, UI.MUTED)
 	phase_l = UI.label("Dawn", UI.silk, 12)
+	# Phones hide the logo, so the day label also takes the ten-tap coin cheat.
+	day_l.mouse_filter = MOUSE_FILTER_STOP
+	day_l.gui_input.connect(_on_logo_input)
 	for l in [day_l, clock_l, phase_l]:
 		l.size_flags_vertical = SIZE_SHRINK_CENTER
 		ck.add_child(l)
@@ -205,25 +225,20 @@ func _build_top(col: VBoxContainer) -> void:
 	rg.add_child(water_btn)
 	sound_btn = PxButton.new("SOUND ON", UI.silk, 11, UI.TEXT)
 	sound_btn.pressed.connect(func(): g.set_sound(not g.synth.on))
+	_speaker = UI.Speaker.new()
+	_speaker.visible = false
+	sound_btn.add_child(_speaker)
 	rg.add_child(sound_btn)
 	flow.add_child(rg)
 	# The compact layout for phones. _apply_mode() moves the widgets above into these rows.
-	_compact_top = UI.vbox(7)
+	# Row 1 holds the clock, the coins and the buttons. Row 2 holds the stat bars.
+	_compact_top = UI.vbox(6)
 	_compact_top.visible = false
 	top_bar.add_child(_compact_top)
-	_row1 = HFlowContainer.new()
-	_row3 = HFlowContainer.new()
-	for r in [_row1, _row3]:
-		r.add_theme_constant_override("h_separation", 10)
-		r.add_theme_constant_override("v_separation", 6)
-		r.mouse_filter = MOUSE_FILTER_IGNORE
+	_row1 = UI.hbox(10)
 	_row2 = UI.hbox(6)
-	_row3_btns = UI.hbox(8)
-	_row3_btns.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
 	_compact_top.add_child(_row1)
 	_compact_top.add_child(_row2)
-	_compact_top.add_child(_row3)
-	_row3.add_child(_row3_btns)
 
 
 func _build_middle() -> void:
@@ -303,11 +318,16 @@ func _build_middle() -> void:
 	dr.store.pressed.connect(_decor_do.bind("store"))
 	var done := PxButton.new("DONE", UI.silk, 12, UI.MUTED, Color(0, 0, 0, 0), Vector2(0, 40), Vector2(6, 8))
 	done.pressed.connect(func(): g.deselect())
+	var dsp := UI.spacer()
 	da.add_child(flip)
 	da.add_child(dr.store)
-	da.add_child(UI.spacer())
+	da.add_child(dsp)
 	da.add_child(done)
 	dv.add_child(da)
+	dr.head = dh
+	dr.row = da
+	dr.spacer = dsp
+	dr.btns = [flip, dr.store, done]
 	decor_card.visible = false
 
 	drawer = UI.px_panel(Color(14 / 255.0, 21 / 255.0, 38 / 255.0, 0.95), UI.BORDER, 3, Vector4(0, 0, 0, 0))
@@ -327,10 +347,17 @@ func _build_middle() -> void:
 	drawer_meta.size_flags_vertical = SIZE_SHRINK_CENTER
 	var dclose := PxButton.new("CLOSE", UI.silk, 12, UI.MUTED, Color(0, 0, 0, 0), Vector2(0, 36), Vector2(4, 6))
 	dclose.pressed.connect(func(): _set_panel(""))
+	_dclose = dclose
+	# On phones the panel buttons move into this row and work as tabs.
+	_tabs = UI.hbox(4)
+	_tabs.size_flags_horizontal = SIZE_EXPAND_FILL
+	_tabs.visible = false
+	hh.add_child(_tabs)
 	hh.add_child(drawer_title)
-	hh.add_child(UI.spacer())
+	_dspacers = [UI.spacer(), UI.spacer()]
+	hh.add_child(_dspacers[0])
 	hh.add_child(drawer_meta)
-	hh.add_child(UI.spacer())
+	hh.add_child(_dspacers[1])
 	hh.add_child(dclose)
 	vv.add_child(hm)
 	var line := ColorRect.new()
@@ -399,15 +426,22 @@ func _build_bottom(col: VBoxContainer) -> void:
 		b.pressed.connect(func(): _pick_tool(key))
 		th.add_child(b)
 		tool_btns[key] = {"btn": b, "label": l, "num": n}
+	# Phones show one MENU button in place of the five panel buttons.
+	menu_btn = PxButton.new("MENU", UI.silk, 13, UI.TEXT, UI.BTN, Vector2(64, 44), Vector2(10, 6))
+	menu_btn.pressed.connect(func(): _set_panel("" if panel != "" else _last_panel))
+	menu_btn.visible = false
+	th.add_child(menu_btn)
 	bottom_bar.add_child(tp)
 	var pp := UI.px_panel(BAR_BG, UI.BORDER, 3, Vector4(6, 6, 6, 6))
 	_panels_panel = pp
 	var ph := UI.hbox(6)
+	_panels_row = ph
 	pp.add_child(ph)
 	for p in PANELS:
 		var b := PxButton.new(p[1], UI.silk, 12, UI.TEXT, UI.BTN, Vector2(58, 44), Vector2(8, 6))
 		var key: String = p[0]
-		b.pressed.connect(func(): _set_panel("" if panel == key else key))
+		# As a drawer tab on phones, a tap on the open tab keeps it open.
+		b.pressed.connect(func(): _set_panel(key if _reflow or panel != key else ""))
 		ph.add_child(b)
 		panel_btns[key] = b
 	bottom_bar.add_child(pp)
@@ -446,10 +480,20 @@ func _pick_tool(k: String) -> void:
 
 
 func _set_panel(k: String) -> void:
-	if k != panel and k != "":
+	# The drawer slides in when it opens. On phones a switch between tabs does not slide.
+	if k != panel and k != "" and (panel == "" or not _reflow):
 		_anim.drawer = 0.0
+	if k != "":
+		_last_panel = k
 	panel = k
 	_refresh()
+
+
+## Runs a purchase. The drawer stays open, so the player can buy more.
+func _buy(f: Callable) -> void:
+	_buying = true
+	f.call()
+	_buying = false
 
 
 func _on_logo_input(e: InputEvent) -> void:
@@ -504,7 +548,7 @@ func _on_changed() -> void:
 	if new_sel:
 		_anim.card = 0.0
 		_anim.decor = 0.0
-		if narrow:
+		if narrow and not _buying:
 			panel = ""
 	_refresh()
 
@@ -536,7 +580,7 @@ func _on_toast(text: String, kind: String) -> void:
 	l.custom_minimum_size.x = minf(tw, minf(520.0 - 32.0 - face_w, maxf(120.0, middle.size.x - 16.0 - 32.0 - face_w)))
 	h.add_child(l)
 	toast_box.add_child(box)
-	while toast_box.get_child_count() > 3:
+	while toast_box.get_child_count() > (2 if _compact else 3):
 		var old := toast_box.get_child(0)
 		toast_box.remove_child(old)
 		old.queue_free()
@@ -558,6 +602,8 @@ func _refresh() -> void:
 	clock_l.text = s.clock
 	phase_l.text = s.phase
 	phase_l.add_theme_color_override("font_color", UI.PHASES.get(s.phase, UI.TEXT))
+	# Phones hide the phase name and show the phase as the clock color.
+	clock_l.add_theme_color_override("font_color", UI.PHASES.get(s.phase, UI.TEXT) if _reflow else UI.MUTED)
 	var vals := [
 		[str(s.water) + "%", s.water, _bar_c(s.water), UI.BAD if s.water < 30 else UI.TEXT],
 		[str(s.algae) + "%", s.algae, UI.ALGAE, UI.WARN if s.algae > 50 else UI.TEXT],
@@ -570,6 +616,9 @@ func _refresh() -> void:
 		r.val.text = vals[i][0]
 		r.val.add_theme_color_override("font_color", vals[i][3])
 		r.bar.set_value(vals[i][1] / 100.0, vals[i][2])
+		# Phones hide the numbers, so the stat name takes the warning color.
+		var warn: Color = vals[i][3]
+		_stat_labels[i].add_theme_color_override("font_color", warn if _reflow and warn != UI.TEXT else UI.MUTED)
 	fish_l.text = "%d/%d" % [s.alive, s.cap]
 	fish_l.add_theme_color_override("font_color", UI.WARN if s.alive >= s.cap else UI.TEXT)
 	var alerts := []
@@ -591,6 +640,7 @@ func _refresh() -> void:
 	water_btn.set_text("WAIT %dS" % s.wcIn if s.wcIn > 0 else "+WATER 15")
 	water_btn.set_dim(0.5 if s.wcIn > 0 or s.coins < 15 else 1.0)
 	sound_btn.set_text("SOUND ON" if s.sound else "SOUND OFF")
+	_speaker.set_on(s.sound)
 	for k in tool_btns:
 		var on: bool = s.tool == k
 		var t: Dictionary = tool_btns[k]
@@ -605,6 +655,10 @@ func _refresh() -> void:
 		var open: bool = panel == k
 		b.set_colors(UI.BTN2 if open else UI.BTN, UI.AQUA if open else UI.TEXT)
 		b.set_dot(dots[k][0] and not open, dots[k][1])
+	var menu_open := panel != ""
+	menu_btn.set_colors(UI.BTN2 if menu_open else UI.BTN, UI.AQUA if menu_open else UI.TEXT)
+	var menu_dot = dots.fish if dots.fish[0] else dots.breed
+	menu_btn.set_dot(menu_dot[0] and not menu_open, menu_dot[1])
 	_refresh_card()
 	_refresh_drawer()
 
@@ -654,7 +708,7 @@ func _refresh_drawer() -> void:
 		"book": ["FISH BOOK", "%d/%d" % [s.bookFound, s.bookTotal]], "awards": ["ACHIEVEMENTS", "%d/%d" % [s.achDone, s.achTotal]]}
 	drawer_title.text = titles[panel][0]
 	drawer_meta.text = titles[panel][1]
-	var sig := panel + ":" + _panel_sig()
+	var sig := panel + ":" + str(_reflow) + ":" + _panel_sig()
 	if sig != _sig:
 		var keep_scroll := sig.get_slice(":", 0) == _sig.get_slice(":", 0)
 		var sc := drawer_scroll.scroll_vertical
@@ -735,6 +789,9 @@ func _fish_row(f: Dictionary) -> Dictionary:
 
 
 func _build_fish() -> void:
+	# Phones have tabs in place of the drawer title, so the count goes here.
+	if _reflow:
+		_refs.count = _section("")
 	var list := UI.vbox(8)
 	list.mouse_filter = MOUSE_FILTER_PASS
 	drawer_body.add_child(list)
@@ -768,6 +825,8 @@ func _build_fish() -> void:
 
 
 func _update_fish() -> void:
+	if _refs.has("count"):
+		_refs.count.text = "YOUR FISH · %d/%d" % [snap.alive, snap.cap]
 	for f in snap.fish:
 		var r = _refs.get(f.id)
 		if r == null:
@@ -812,7 +871,7 @@ func _build_shop() -> void:
 		cv[1].add_child(row)
 		var key: String = it.key
 		var b := PxButton.new("BUY %d" % it.price, UI.silk, 12, UI.GOLD_TEXT, UI.BTN2, Vector2(0, 36), Vector2(6, 6))
-		b.pressed.connect(func(): g.buy_fish(key))
+		b.pressed.connect(func(): _buy(func(): g.buy_fish(key)))
 		cv[1].add_child(b)
 		fg.add_child(cv[0])
 		_refs.fish[key] = b
@@ -828,10 +887,7 @@ func _build_shop() -> void:
 		cv[1].add_child(UI.wrap_label(it.desc, UI.pix, 13, UI.MUTED))
 		var key: String = it.key
 		var b := PxButton.new("BUY %d" % it.price, UI.silk, 12, UI.GOLD_TEXT, UI.BTN2, Vector2(0, 36), Vector2(6, 6))
-		b.pressed.connect(func():
-			g.buy_decor(key)
-			if narrow:
-				_set_panel(""))
+		b.pressed.connect(func(): _buy(func(): g.buy_decor(key)))
 		cv[1].add_child(b)
 		dg.add_child(cv[0])
 		_refs.decor[key] = b
@@ -857,7 +913,7 @@ func _build_shop() -> void:
 		var key: String = u.key
 		var b := PxButton.new("BUY", UI.silk, 12, UI.GOLD_TEXT, UI.BTN2, Vector2(84, 36), Vector2(10, 6))
 		b.size_flags_vertical = SIZE_SHRINK_CENTER
-		b.pressed.connect(func(): g.buy_upgrade(key))
+		b.pressed.connect(func(): _buy(func(): g.buy_upgrade(key)))
 		h.add_child(b)
 		ul.add_child(row)
 		_refs.upg[key] = {"lv": lv, "desc": desc, "btn": b}
@@ -960,6 +1016,8 @@ func _update_breed() -> void:
 
 
 func _build_book() -> void:
+	if _reflow:
+		_section("FOUND · %d/%d" % [snap.bookFound, snap.bookTotal])
 	drawer_body.add_child(UI.wrap_label("Breed fish to discover new colors. Pearl, Ink and Gilt only appear by chance. Puff and Lantern can only be bred.", UI.pix, 14, UI.MUTED))
 	for row in g.book_rows():
 		var v := UI.vbox(6)
@@ -991,6 +1049,8 @@ func _build_book() -> void:
 
 
 func _build_awards() -> void:
+	if _reflow:
+		_section("DONE · %d/%d" % [snap.achDone, snap.achTotal])
 	var list := UI.vbox(8)
 	drawer_body.add_child(list)
 	for a in g.ach_rows():
@@ -1042,38 +1102,37 @@ func _on_reset() -> void:
 
 # ---------- layout ----------
 
-## Switches layouts. reflow moves the top bar into three phone rows. small uses tighter sizes.
+## Switches layouts. reflow is the phone layout: a two-row top bar, one bottom row
+## with a MENU button, and tabs in the drawer. two_row puts the whole top bar in one
+## row on landscape phones. small uses tighter sizes.
 func _apply_mode(reflow: bool, small: bool, two_row: bool) -> void:
 	_compact = small
 	_reflow = reflow
 	_two_row = two_row
 	var c := small
+	_touch = DisplayServer.is_touchscreen_available()
 	if reflow:
 		_lg.reparent(_row1, false)
-		_row1.move_child(_lg, 0)
-		_coin.reparent(_row1, false)
-		_coin.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
+		_row2.reparent(_row1 if two_row else _compact_top, false)
+		_row2.size_flags_horizontal = SIZE_EXPAND_FILL
 		for it in _stat_items:
 			it.reparent(_row2, false)
-		if two_row:
-			# Short landscape screens: buttons beside the coins, fish count after the stats.
-			_row3_btns.reparent(_row1, false)
-			_row3_btns.size_flags_horizontal = SIZE_SHRINK_END
-			_fish_g.reparent(_row2, false)
-		else:
-			_row3_btns.reparent(_row3, false)
-			_row3_btns.size_flags_horizontal = SIZE_EXPAND | SIZE_SHRINK_END
-			_fish_g.reparent(_row3, false)
-			_row3.move_child(_fish_g, 0)
-		_row3.visible = not two_row
-		water_btn.reparent(_row3_btns, false)
-		sound_btn.reparent(_row3_btns, false)
+		_coin.reparent(_row1, false)
+		_coin.size_flags_horizontal = SIZE_FILL if two_row else SIZE_EXPAND | SIZE_SHRINK_END
+		water_btn.reparent(_row1, false)
+		sound_btn.reparent(_row1, false)
+		# reparent() keeps the order when the parent does not change, so set it here.
+		var order: Array = [_lg] + ([_row2] if two_row else []) + [_coin, water_btn, sound_btn]
+		for n in order.size():
+			_row1.move_child(order[n], n)
+		if not two_row:
+			_compact_top.move_child(_row2, 1)
 	else:
 		_lg.reparent(_top_flow, false)
 		_top_flow.move_child(_lg, 0)
 		for it in _stat_items:
 			it.reparent(stats_flow, false)
-		_fish_g.reparent(stats_flow, false)
+		stats_flow.move_child(_fish_g, -1)
 		_coin.reparent(_rg, false)
 		_rg.move_child(_coin, 0)
 		_coin.size_flags_horizontal = SIZE_FILL
@@ -1081,6 +1140,12 @@ func _apply_mode(reflow: bool, small: bool, two_row: bool) -> void:
 		sound_btn.reparent(_rg, false)
 	_top_flow.visible = not reflow
 	_compact_top.visible = reflow
+	# Phones hide the logo, the phase name, the income, the fish count and the stat numbers.
+	_logo.visible = not reflow
+	phase_l.visible = not reflow
+	income_l.visible = not reflow
+	sound_btn.label.visible = not reflow
+	_speaker.visible = reflow
 	var pad := Vector4(10, 7, 10, 7) if c else Vector4(12, 8, 12, 8)
 	top_bar.add_theme_stylebox_override("panel", UI.px_box(BAR_BG, UI.BORDER, 3, pad))
 	_logo.add_theme_font_size_override("font_size", 11 if c else 16)
@@ -1092,31 +1157,99 @@ func _apply_mode(reflow: bool, small: bool, two_row: bool) -> void:
 	fish_l.add_theme_font_size_override("font_size", 10 if c else 11)
 	for i in _stat_items.size():
 		_stat_items[i].custom_minimum_size.x = 0.0 if reflow else 64.0
+		_stat_items[i].add_theme_constant_override("separation", 3 if reflow else 4)
 		_stat_labels[i].add_theme_font_size_override("font_size", 9 if c else 10)
 		_stat_labels[i].clip_text = reflow
 		_stat_labels[i].size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
 		_stat_heads[i].get_child(1).visible = not reflow
-		_stat_heads[i].add_theme_constant_override("separation", 3 if reflow else 6)
+		stat_rows[i].val.visible = not reflow
 		stat_rows[i].val.add_theme_font_size_override("font_size", 9 if c else 10)
-	for b in [water_btn, sound_btn]:
-		b.label.add_theme_font_size_override("font_size", 10 if c else 11)
-		b.custom_minimum_size.y = 30 if c else 34
+		stat_rows[i].bar.custom_minimum_size.y = 5 if reflow else 6
+	water_btn.label.add_theme_font_size_override("font_size", 10 if c else 11)
+	water_btn.custom_minimum_size.y = 30 if c else 34
+	sound_btn.label.add_theme_font_size_override("font_size", 10 if c else 11)
+	sound_btn.custom_minimum_size = Vector2(34, 30) if reflow else Vector2(0, 30 if c else 34)
+	sound_btn.set_pad(8 if reflow else 10, 6)
 	for side in ["left", "top", "right", "bottom"]:
 		_margin.add_theme_constant_override("margin_" + side, 8 if c else 15)
+	_col.add_theme_constant_override("separation", 10 if c else 18)
 	bottom_bar.add_theme_constant_override("v_separation", 10 if c else 16)
-	for p in [_tools_panel, _panels_panel]:
-		p.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
-	var touch := DisplayServer.is_touchscreen_available()
-	for k in tool_btns:
-		tool_btns[k].num.visible = not (c or touch)
-		tool_btns[k].btn.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
-		tool_btns[k].btn.custom_minimum_size.x = 0.0 if reflow else 64.0
-	for k in panel_btns:
-		panel_btns[k].size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
-		panel_btns[k].custom_minimum_size.x = 0.0 if reflow else 58.0
+	hint_box.add_theme_stylebox_override("panel", UI.px_box(BAR_BG, UI.BORDER, 2, Vector4(10, 5, 10, 5) if c else Vector4(14, 8, 14, 8)))
+	hint_l.add_theme_font_size_override("font_size", 12 if c else 14)
+	_apply_bottom(reflow, two_row, c)
+	_apply_drawer(reflow)
+	_apply_cards(reflow)
 	for b in _zoom_btns:
 		b.custom_minimum_size = Vector2(36, 36) if c else Vector2(40, 40)
 	_refresh()
+
+
+## Phones get one bottom row: the four tools and a MENU button.
+func _apply_bottom(reflow: bool, two_row: bool, c: bool) -> void:
+	_panels_panel.visible = not reflow
+	menu_btn.visible = reflow
+	# Portrait phones stretch the row across the screen. Landscape phones center it.
+	var fill := reflow and not two_row
+	_tools_panel.size_flags_horizontal = SIZE_EXPAND_FILL if fill else SIZE_FILL
+	var w := 0.0 if fill else (76.0 if reflow else 64.0)
+	var btns: Array = []
+	for k in tool_btns:
+		btns.append(tool_btns[k].btn)
+		tool_btns[k].num.visible = not (c or _touch)
+		tool_btns[k].label.add_theme_font_size_override("font_size", 12 if reflow else 13)
+	tool_btns.arrange.label.text = "Move" if reflow else "Arrange"
+	menu_btn.label.add_theme_font_size_override("font_size", 12)
+	btns.append(menu_btn)
+	for b in btns:
+		b.size_flags_horizontal = SIZE_EXPAND_FILL if fill else SIZE_FILL
+		b.custom_minimum_size = Vector2(w, 42 if reflow else 44)
+		b.set_pad(2 if reflow else 10, 6)
+
+
+## Phones move the five panel buttons into the drawer header, where they work as tabs.
+func _apply_drawer(reflow: bool) -> void:
+	for p in PANELS:
+		var b: PxButton = panel_btns[p[0]]
+		b.reparent(_tabs if reflow else _panels_row, false)
+		b.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+		b.custom_minimum_size = Vector2(0, 32) if reflow else Vector2(58, 44)
+		b.set_pad(2 if reflow else 8, 4 if reflow else 6)
+		b.label.add_theme_font_size_override("font_size", 10 if reflow else 12)
+	_tabs.visible = reflow
+	drawer_title.visible = not reflow
+	drawer_meta.visible = not reflow
+	for sp in _dspacers:
+		sp.visible = not reflow
+	_dclose.set_text("X" if reflow else "CLOSE")
+	_dclose.custom_minimum_size = Vector2(32, 32) if reflow else Vector2(0, 36)
+	var hm := [6, 6] if reflow else [14, 10]
+	for side in [["left", hm[0]], ["right", hm[0]], ["top", hm[1]], ["bottom", hm[1]]]:
+		drawer_header.add_theme_constant_override("margin_" + side[0], side[1])
+	for side in ["left", "top", "right", "bottom"]:
+		drawer_inner.add_theme_constant_override("margin_" + side, 10 if reflow else 14)
+
+
+## Phones get a one-row decor card: the name, then the buttons.
+func _apply_cards(reflow: bool) -> void:
+	if reflow:
+		dr.name.reparent(dr.row, false)
+		dr.row.move_child(dr.name, 0)
+	else:
+		dr.name.reparent(dr.head, false)
+		dr.head.move_child(dr.name, 0)
+	dr.head.visible = not reflow
+	dr.spacer.visible = not reflow
+	dr.name.size_flags_horizontal = SIZE_EXPAND_FILL if reflow else SIZE_FILL
+	dr.name.size_flags_vertical = SIZE_SHRINK_CENTER
+	dr.name.clip_text = reflow
+	dr.name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if reflow else TextServer.OVERRUN_NO_TRIMMING
+	dr.name.add_theme_font_size_override("font_size", 16 if reflow else 20)
+	for b in dr.btns:
+		b.custom_minimum_size.y = 36 if reflow else 40
+		b.label.add_theme_font_size_override("font_size", 11 if reflow else 12)
+		var px := 6 if b == dr.btns[2] else (8 if reflow else 12)
+		b.set_pad(px, 6 if reflow else 8)
+	decor_card.add_theme_stylebox_override("panel", UI.px_box(PANEL_BG, UI.BORDER, 3, Vector4(10, 8, 10, 8) if reflow else Vector4(14, 12, 14, 12)))
 
 
 func _process(dt: float) -> void:
@@ -1139,6 +1272,11 @@ func _process(dt: float) -> void:
 	g.set_view(size, top_inset, bottom_inset)
 	for k in _anim:
 		_anim[k] = minf(1.0, _anim[k] + dt)
+	# The decor card slides back in when a drag ends.
+	var dragging := not g.drag.is_empty()
+	if _was_dragging and not dragging:
+		_anim.decor = 0.0
+	_was_dragging = dragging
 	_layout_hint()
 	_layout_middle()
 
@@ -1158,7 +1296,8 @@ func _layout_middle() -> void:
 		var content: float = drawer_header.get_combined_minimum_size().y + 3.0 + drawer_inner.get_combined_minimum_size().y
 		var dh := minf(content, mh)
 		drawer.size = Vector2(dw, dh)
-		drawer.position = Vector2(mw - dw, mh - dh + _slide("drawer", 0.18))
+		# On phones the drawer hangs from the top, so the tabs stay in place when the content height changes.
+		drawer.position = Vector2(mw - dw, (0.0 if _reflow else mh - dh) + _slide("drawer", 0.18))
 		drawer.modulate.a = minf(1.0, _anim.drawer / 0.18 * 1.5)
 	var room := mw - (dw + 16.0 if dw > 0.0 else 0.0)
 	if card.visible:
@@ -1167,38 +1306,53 @@ func _layout_middle() -> void:
 		var ch := card.get_combined_minimum_size().y
 		card.size = Vector2(cw, ch)
 		card.position = Vector2(0, mh - ch + _slide("card", 0.18))
+	# The decor card sits at the top of the tank, away from the gravel where the
+	# decorations stand. It hides while a decoration is dragged.
+	decor_card.visible = snap.get("selDecor") != null and not (narrow and panel != "") and g.drag.is_empty()
+	var top_off := 0.0
 	if decor_card.visible:
 		var cw := clampf(room, minf(280.0, mw), minf(440.0, mw))
 		decor_card.size = Vector2(cw, 0)
 		var ch := decor_card.get_combined_minimum_size().y
 		decor_card.size = Vector2(cw, ch)
-		decor_card.position = Vector2(0, mh - ch + _slide("decor", 0.18))
-	zoom_box.visible = not drawer.visible
+		decor_card.position = Vector2(0, _slide("decor", 0.18))
+		top_off = ch + 10.0
+	if hint_box.visible and _compact:
+		top_off = maxf(top_off, hint_box.position.y + hint_box.size.y - middle.global_position.y + 8.0)
+	# On phones the drawer fills the tank area, so toasts go below its tabs.
+	if drawer.visible and _reflow:
+		top_off = maxf(top_off, drawer.position.y + drawer_header.get_combined_minimum_size().y + 12.0)
+	# Phones zoom with a pinch, so they do not show the zoom buttons.
+	zoom_box.visible = not drawer.visible and not (_compact and _touch)
 	var zs := zoom_box.get_combined_minimum_size()
 	zoom_box.size = zs
 	var zy := mh - zs.y
-	if (card.visible or decor_card.visible) and mw < 560.0:
-		zy = minf(zy, (card.position.y if card.visible else decor_card.position.y) - zs.y - 12.0)
-	if hint_box.visible:
+	if card.visible and mw < 560.0:
+		zy = minf(zy, card.position.y - zs.y - 12.0)
+	if hint_box.visible and not _compact:
 		zy = minf(zy, hint_box.position.y - middle.global_position.y - zs.y - 10.0)
 	zoom_box.position = Vector2(mw - zs.x, maxf(0.0, zy))
 	toast_box.size = Vector2(mw, 0)
-	toast_box.position = Vector2(0, 0)
+	toast_box.position = Vector2(0, top_off)
 
 
 func _layout_hint() -> void:
 	var s := snap
-	var show := not s.is_empty() and _clock < hint_until and s.sel == null and s.selDecor == null and panel == ""
+	var show := not s.is_empty() and _clock < hint_until and s.sel == null and s.selDecor == null and panel == "" and g.drag.is_empty()
 	hint_box.visible = show
 	if not show:
 		return
-	var text: String = HINTS.get(s.tool, "")
+	var fs := 12 if _compact else 14
+	var text: String = (HINTS_SHORT if _compact else HINTS).get(s.tool, "")
 	if hint_l.text != text:
 		hint_l.text = text
-	var tw := UI.pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 2.0
-	var w := minf(tw, minf(560.0, size.x * 0.92) - 28.0)
+	var pad := 20.0 if _compact else 28.0
+	var tw := UI.pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 2.0
+	var w := minf(tw, minf(560.0, size.x * 0.92) - pad)
 	hint_l.custom_minimum_size.x = w
-	hint_box.size = Vector2(w + 28.0, 0)
+	hint_box.size = Vector2(w + pad, 0)
 	var hs := hint_box.get_combined_minimum_size()
 	hint_box.size = hs
-	hint_box.position = Vector2((size.x - hs.x) * 0.5, bottom_bar.global_position.y - 3.0 - 12.0 - hs.y)
+	# Phones show the hint at the top of the tank. Larger screens show it above the tools.
+	var y := middle.global_position.y + 8.0 if _compact else bottom_bar.global_position.y - 3.0 - 12.0 - hs.y
+	hint_box.position = Vector2((size.x - hs.x) * 0.5, y)
